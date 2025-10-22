@@ -1,6 +1,5 @@
 # Smart Heating Predictor ML Engine
 # Author: prezes9732
-# Full implementation at: https://www.perplexity.ai/search/stworz-mi-custom-integration-d-4WuaNPQWQ.u3BH4ciKFAtw
 
 import numpy as np
 from datetime import datetime, timedelta
