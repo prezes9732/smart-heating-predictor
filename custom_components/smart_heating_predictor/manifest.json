@@ -1,7 +1,8 @@
 custom_components/smart_heating_predictor/manifest.json{
   "domain": "smart_heating_predictor",
   "name": "Smart Heating Predictor",
-  "documentation": "https://github.com/prezes9732/smart_heating_predictor",
+  "documentation": "https://github.com/prezes9732/smart_heating_predictor,
+    "issue_tracker": "https://github.com/prezes9732/smart-heating-predictor/issues"",
   "requirements": ["scikit-learn==1.3.0", "numpy==1.24.0"],
   "codeowners": ["@prezes9732"],
   "version": "1.0.0",
