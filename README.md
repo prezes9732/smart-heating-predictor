@@ -197,7 +197,6 @@ entities:
 
 For issues, questions, or contributions:
 - **GitHub Issues:** https://github.com/prezes9732/smart-heating-predictor/issues
-- **Full Documentation:** https://www.perplexity.ai/search/stworz-mi-custom-integration-d-4WuaNPQWQ.u3BH4ciKFAtw
 
 ---
 
