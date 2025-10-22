@@ -180,4 +180,64 @@ class SmartHeatingCoordinator(DataUpdateCoordinator):
             
             # Predict pre-heat time
             preheat_time = self.predictor.predict_preheat_time(features)
-            _LOGGER.debug(f"Predicted preheat time for {thermostat_id}: {preheat_time} minutes")
+            
+            # Store predictions and check for anomalies
+            if self.predictor.anomaly_detection_enabled:
+                anomaly = self.predictor.detect_anomaly(features, preheat_time)
+                if anomaly:
+                    _LOGGER.warning(f"Anomaly detected for {thermostat_id}: {anomaly}")
+            
+            # Store prediction for this thermostat
+            self.predictions[thermostat_id] = {
+                "preheat_time": preheat_time,
+                "target_temp": target_temp,
+                "timestamp": current_time
+            }
+    
+    async def _async_update_data(self):
+        """Fetch data from sensors."""
+        try:
+            # Get thermostat data
+            thermostat_data = {}
+            for thermostat_id in self.thermostats:
+                state = self.hass.states.get(thermostat_id)
+                if state:
+                    thermostat_data[thermostat_id] = {
+                        "current_temp": state.attributes.get("current_temperature"),
+                        "target_temp": state.attributes.get("temperature"),
+                        "hvac_action": state.attributes.get("hvac_action"),
+                        "hvac_mode": state.state
+                    }
+            
+            # Get weather data
+            weather_data = {}
+            if self.outdoor_temp_sensor:
+                temp_state = self.hass.states.get(self.outdoor_temp_sensor)
+                if temp_state:
+                    weather_data["temperature"] = float(temp_state.state)
+            
+            if self.outdoor_humidity_sensor:
+                humidity_state = self.hass.states.get(self.outdoor_humidity_sensor)
+                if humidity_state:
+                    weather_data["humidity"] = float(humidity_state.state)
+            
+            # Collect training data in learning mode
+            if self.predictor.learning_mode:
+                await self._collect_training_data(thermostat_data, weather_data)
+            else:
+                # Execute predictions in operating mode
+                await self._execute_predictions(thermostat_data, weather_data)
+            
+            # Auto-train if enough samples collected
+            if len(self.predictor.training_data) >= 100 and not self.predictor.is_trained:
+                await self.hass.async_add_executor_job(self.predictor.train_model)
+            
+            return {
+                "thermostats": thermostat_data,
+                "weather": weather_data,
+                "predictions": self.predictions
+            }
+        
+        except Exception as e:
+            _LOGGER.error(f"Error updating data: {e}")
+            raise
