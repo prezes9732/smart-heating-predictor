@@ -1,28 +1,100 @@
-"""
-Smart Heating Predictor Integration for Home Assistant
-Author: prezes9732
-Created: 2025
+"""Smart Heating Predictor Integration for Home Assistant"""
+import logging
+from datetime import timedelta
 
-This integration provides intelligent heating control using offline machine learning.
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.typing import ConfigType
 
-IMPORTANT: Full implementation code is available in the Perplexity AI response at:
-https://www.perplexity.ai/search/stworz-mi-custom-integration-d-4WuaNPQWQ.u3BH4ciKFAtw
+from .const import DOMAIN
+from .coordinator import SmartHeatingCoordinator
 
-To implement this integration, copy all files from the Perplexity response including:
-- manifest.json
-- const.py
-- config_flow.py
-- ml_engine.py
-- coordinator.py
-- sensor.py
-- number.py
-- select.py
-- binary_sensor.py
-- services.yaml
-- translations/pl.json
+_LOGGER = logging.getLogger(__name__)
 
-Created by: prezes9732
-Repository: https://github.com/prezes9732/smart-heating-predictor
-"""
+PLATFORMS = ["sensor", "binary_sensor", "select", "number"]
 
-# Placeholder file - see documentation link above for full implementation
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the Smart Heating Predictor component."""
+    hass.data.setdefault(DOMAIN, {})
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Smart Heating Predictor from a config entry."""
+    coordinator = SmartHeatingCoordinator(hass, entry)
+    await coordinator.async_config_entry_first_refresh()
+    
+    hass.data[DOMAIN][entry.entry_id] = coordinator
+    
+    # Setup platforms
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    
+    # Register services
+    await async_setup_services(hass, coordinator)
+    
+    # Register reload service
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+    
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
+    
+    return unload_ok
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload config entry."""
+    await async_unload_entry(hass, entry)
+    await async_setup_entry(hass, entry)
+
+
+async def async_setup_services(hass: HomeAssistant, coordinator: SmartHeatingCoordinator) -> None:
+    """Register integration services."""
+    
+    async def set_schedule_slot(call):
+        """Set schedule slot."""
+        day = call.data.get("day")
+        hour = call.data.get("hour")
+        target_temp = call.data.get("target_temp")
+        room = call.data.get("room", "default")
+        
+        key = f"{day}_{hour}_{room}"
+        coordinator.schedule[key] = target_temp
+        await coordinator.async_request_refresh()
+        
+        _LOGGER.info(f"Schedule slot set: {key} = {target_temp}°C")
+    
+    async def set_learning_mode(call):
+        """Set learning mode."""
+        mode = call.data.get("mode")
+        coordinator.predictor.learning_mode = mode
+        await coordinator.async_request_refresh()
+        
+        _LOGGER.info(f"Learning mode set to: {mode}")
+    
+    async def trigger_training(call):
+        """Trigger immediate model training."""
+        await hass.async_add_executor_job(coordinator.predictor.train_model)
+        await coordinator.async_request_refresh()
+        
+        _LOGGER.info("Manual training triggered")
+    
+    async def clear_training_data(call):
+        """Clear all training data."""
+        coordinator.predictor.training_data = []
+        coordinator.predictor.is_trained = False
+        await coordinator.async_request_refresh()
+        
+        _LOGGER.info("Training data cleared")
+    
+    hass.services.async_register(DOMAIN, "set_schedule_slot", set_schedule_slot)
+    hass.services.async_register(DOMAIN, "set_learning_mode", set_learning_mode)
+    hass.services.async_register(DOMAIN, "trigger_training", trigger_training)
+    hass.services.async_register(DOMAIN, "clear_training_data", clear_training_data)
