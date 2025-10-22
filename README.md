@@ -6,38 +6,84 @@
 
 ## Overview
 
-Custom Home Assistant integration for smart heating prediction using **offline machine learning**. This integration intelligently controls your heating system by predicting optimal pre-heating times based on historical data, weather conditions, and learned patterns.
+Custom Home Assistant integration for smart heating prediction using **simple heuristic algorithms**. This integration intelligently controls your heating system by predicting optimal pre-heating times based on historical data, weather conditions, and learned patterns.
+
+**HAOS Compatible** - Uses only standard Python libraries, no external dependencies required!
 
 ## Features
 
-- 🤖 **Offline Machine Learning** - Uses scikit-learn Random Forest, no internet required
+- 🔢 **Simple Statistical Learning** - No ML libraries needed, pure Python mathematics
 - 📊 **Predictive Heating** - Learns how long it takes to heat each room
 - 🌡️ **Weather Integration** - Uses outdoor temperature and humidity sensors
 - 🔍 **Anomaly Detection** - Detects open windows and cooking activities (>2.5°C/5min)
 - 📅 **Weekly Schedule** - 7-day × 24-hour temperature scheduling
 - 🌙 **Night Training** - Automatic model training at 3:00 AM
-- 💾 **Persistent Model** - Saves trained model to pickle file
-- ⚙️ **Visual Configuration** - Full UI-based setup (like Adaptive Lighting)
+- 💾 **Persistent Model** - Saves trained parameters to JSON file
+- ⚙️ **Visual Configuration** - Full UI-based setup
+- ✅ **Zero Dependencies** - Works on HAOS without additional packages
+
+## Why No Machine Learning Libraries?
+
+This integration was redesigned to work perfectly with **Home Assistant Operating System (HAOS)** where you cannot install additional Python packages. Instead of scikit-learn or numpy, it uses:
+
+- **Statistical averaging** for learning heating rates
+- **Simple heuristics** for temperature predictions
+- **Standard Python math** for calculations
+- **JSON storage** instead of pickle files
+
+## How It Works
+
+### Learning Mode
+1. Collects data about heating times and temperature changes
+2. Calculates average heating/cooling rates
+3. Stores patterns in JSON format
+4. Trains at night (3:00-4:00 AM) to avoid system load
+
+### Prediction Algorithm
+
+The predictor uses a simple but effective formula:
+
+```
+preheat_time = (target_temp - current_temp) / heating_rate × outdoor_factor × humidity_factor × time_factor
+```
+
+Where:
+- `heating_rate`: learned from historical data (default 0.5°C/min)
+- `outdoor_factor`: 1.5x when <0°C, 1.2x when <10°C, 0.9x when >20°C
+- `humidity_factor`: adjustment based on outdoor humidity
+- `time_factor`: 1.2-1.3x during cold morning/night hours
+
+### Anomaly Detection
+
+Detects unusual temperature changes:
+- Rapid drop (>2.5°C/5min) → likely open window
+- Rapid rise without heating → likely cooking activity
 
 ## Installation
 
-### Full Implementation Code
+### Method 1: HACS (Recommended)
 
-**IMPORTANT:** Complete implementation with all files is available in the Perplexity AI response:
+1. Add this repository to HACS as a custom repository
+2. Install "Smart Heating Predictor"
+3. Restart Home Assistant
+4. Go to **Settings** → **Devices & Services** → **Add Integration**
+5. Search for "Smart Heating Predictor"
 
-👉 **[View Full Code Documentation](https://www.perplexity.ai/search/stworz-mi-custom-integration-d-4WuaNPQWQ.u3BH4ciKFAtw)**
+### Method 2: Manual Installation
 
-### Files Required
+1. Copy the `custom_components/smart_heating_predictor` folder to your Home Assistant's `custom_components` directory
+2. Restart Home Assistant
+3. Add the integration via the UI
 
-Copy these files from the Perplexity response to your Home Assistant:
+### Files Structure
 
 ```
 custom_components/smart_heating_predictor/
 ├── __init__.py
-├── manifest.json
+├── manifest.json          # No dependencies!
 ├── const.py
 ├── config_flow.py
-├── ml_engine.py
+├── ml_engine.py          # Simple prediction engine
 ├── coordinator.py
 ├── sensor.py
 ├── number.py
@@ -45,110 +91,116 @@ custom_components/smart_heating_predictor/
 ├── binary_sensor.py
 ├── services.yaml
 └── translations/
+    ├── en.json
     └── pl.json
 ```
 
-### Installation Steps
-
-1. Create directory: `config/custom_components/smart_heating_predictor/`
-2. Copy all 12 files from the Perplexity documentation link above
-3. Restart Home Assistant
-4. Go to Settings → Devices & Services → Add Integration
-5. Search for "Smart Heating Predictor"
-6. Follow the setup wizard
-
 ## Configuration
 
-After installation, configure through the UI:
+### Step 1: Add Integration
 
-1. **Thermostats** - Select your `climate.*` entities
-2. **Sensors** - Choose `weather.*` or temperature/humidity sensors
-3. **Schedule** - Set comfort (21°C) and eco (18°C) temperatures
-4. **Advanced** - Configure learning mode (14-21 days recommended)
+1. Go to **Settings** → **Devices & Services**
+2. Click **+ Add Integration**
+3. Search for "Smart Heating Predictor"
+4. Follow the configuration wizard
 
-## How It Works
+### Step 2: Select Devices
 
-### Learning Mode (First 14-21 days)
+- **Thermostats**: Choose your climate entities
+- **Weather Entity**: Optional weather integration
+- **Outdoor Temperature Sensor**: Optional external temp sensor
+- **Outdoor Humidity Sensor**: Optional external humidity sensor
 
-- Collects heating data from your thermostats
-- Records outdoor conditions and heating times
-- Trains ML model nightly at 3:00 AM
-- Shows progress: "65% - ~7 days remaining"
+### Step 3: Configure Schedule
 
-### Operating Mode
+Use the service `smart_heating_predictor.set_schedule` to set your weekly schedule:
 
-- Predicts pre-heat time needed (5-120 minutes)
-- Automatically starts heating before scheduled times
-- Continues learning and adapting
-- Detects anomalies (open windows, cooking)
+```yaml
+service: smart_heating_predictor.set_schedule
+data:
+  day: 0  # Monday (0-6)
+  hour: 6  # 6:00 AM
+  target_temp: 21
+```
 
-## Key Components
+### Step 4: Learning Phase
 
-### Machine Learning Engine (`ml_engine.py`)
-- Random Forest Regressor (50 estimators, max depth 10)
-- Standard Scaler for feature normalization
-- Anomaly detection (temperature change >2.5°C/5min)
-- Model persistence via pickle
+1. Leave in **Learning Mode** for 14-21 days
+2. The integration will collect data and learn heating patterns
+3. Check `sensor.smart_heating_learning_progress` for progress
+4. When ready, switch to **Operation Mode**
 
-### Coordinator (`coordinator.py`)
-- Data collection from thermostats and sensors
-- 5-minute update interval
-- Night training scheduler (3:00-4:00 AM)
-- Anomaly tracking
+## Entities Created
 
 ### Sensors
-- `sensor.smart_heating_learning_progress` - Training progress
-- `sensor.smart_heating_recommended_learning_time` - Estimated days left
-- `sensor.smart_heating_prediction_*` - Pre-heat time per thermostat
-- `binary_sensor.smart_heating_anomaly` - Anomaly detection status
 
-### Controls
-- `select.smart_heating_mode` - Learning / Operating mode toggle
-- `number.smart_heating_anomaly_threshold` - Sensitivity (0.5-5.0°C/5min)
+- `sensor.smart_heating_learning_progress` - Training progress percentage
+- `sensor.smart_heating_preheat_time_[room]` - Predicted preheat time for each room
+- `sensor.smart_heating_outdoor_temp` - Current outdoor temperature
+- `sensor.smart_heating_recommended_learning_time` - Estimated time until model is trained
+
+### Binary Sensors
+
+- `binary_sensor.smart_heating_anomaly_detected` - Anomaly detection status
+
+### Selects
+
+- `select.smart_heating_mode` - Switch between Learning/Operation modes
+
+### Numbers
+
+- `number.smart_heating_anomaly_threshold` - Adjust anomaly sensitivity (default 2.5°C/5min)
 
 ## Services
 
-### `smart_heating_predictor.set_schedule_slot`
-Set weekly schedule temperature for specific day/hour.
+### `smart_heating_predictor.set_schedule`
+
+Set a temperature for a specific day and hour.
 
 ```yaml
-service: smart_heating_predictor.set_schedule_slot
+service: smart_heating_predictor.set_schedule
 data:
-  day: 0  # Monday
-  hour: 7  # 7:00 AM
+  day: 0  # 0=Monday, 6=Sunday
+  hour: 7  # 0-23
   target_temp: 21.5
-  room: "living_room"
 ```
 
-### `smart_heating_predictor.set_learning_mode`
-Toggle between learning and operating mode.
+### `smart_heating_predictor.force_training`
+
+Manually trigger model training.
 
 ```yaml
-service: smart_heating_predictor.set_learning_mode
-data:
-  mode: false  # Switch to operating mode
+service: smart_heating_predictor.force_training
 ```
 
-## Dashboard Cards
+## Lovelace Cards
 
-### Temperature Chart (Apex Charts)
+### Temperature Chart with Anomalies
 
 ```yaml
 type: custom:apexcharts-card
 header:
   title: Smart Heating - Temperature & Anomalies
+  show: true
 graph_span: 24h
 series:
   - entity: sensor.smart_heating_target_temp
     name: Target Temperature
     type: line
+    stroke_width: 2
   - entity: sensor.smart_heating_current_temp
     name: Current Temperature
     type: line
-  - entity: binary_sensor.smart_heating_anomaly
+    stroke_width: 2
+  - entity: sensor.smart_heating_outdoor_temp
+    name: Outdoor Temperature
+    type: line
+    stroke_width: 1
+  - entity: binary_sensor.smart_heating_anomaly_detected
     name: Anomalies
     type: area
     color: red
+    opacity: 0.3
 ```
 
 ### Control Panel
@@ -162,44 +214,113 @@ entities:
   - entity: sensor.smart_heating_learning_progress
     name: Learning Progress
   - entity: sensor.smart_heating_recommended_learning_time
-    name: Time Remaining
+    name: Recommended Learning Time
+  - entity: number.smart_heating_anomaly_threshold
+    name: Anomaly Threshold
 ```
+
+## Requirements
+
+- **Home Assistant**: 2024.4.0 or newer
+- **Python**: 3.10+ (included in HA)
+- **Dependencies**: None! 🎉
 
 ## Technical Details
 
-### Dependencies
-- `scikit-learn==1.3.0`
-- `numpy==1.24.0`
+### Data Storage
+
+All data is stored in JSON format in the Home Assistant config directory:
+
+```
+<config_dir>/smart_heating_predictor_model.json
+```
+
+Structure:
+```json
+{
+  "model_params": {
+    "heating_rate": 0.5,
+    "cooling_rate": 0.1,
+    "outdoor_factor": 1.0,
+    "thermal_mass": 1.0
+  },
+  "training_data": [...],
+  "is_trained": true,
+  "last_updated": "2025-10-22T19:00:00"
+}
+```
 
 ### Performance
-- Model training: Only at night (3:00-4:00 AM)
-- Data sampling: Every 5 minutes
-- Minimum samples for training: 100
-- Prediction time: <100ms
 
-### Feature Set
-1. Outdoor temperature
-2. Outdoor humidity
-3. Target temperature
-4. Hour of day
-5. Day of week
-6. Month
-7. Current room temperature
-8. Temperature delta
+- **Update Interval**: 5 minutes
+- **Training Schedule**: 3:00-4:00 AM
+- **Memory Usage**: Minimal (~1MB)
+- **CPU Usage**: Negligible
+- **Storage**: ~100KB JSON file
 
-## Credits
+## Troubleshooting
 
-**Created by:** prezes9732  
-**Year:** 2025  
-**License:** MIT (or your chosen license)
+### Integration Not Appearing
+
+1. Check that files are in `custom_components/smart_heating_predictor/`
+2. Restart Home Assistant
+3. Check logs for errors: **Settings** → **System** → **Logs**
+
+### No Predictions
+
+1. Ensure you're in **Operation Mode**
+2. Check if model is trained: `sensor.smart_heating_learning_progress`
+3. Verify thermostats are configured correctly
+
+### Inaccurate Predictions
+
+1. Ensure learning period was sufficient (14+ days)
+2. Check for anomalies in `sensor.smart_heating_anomaly_detected`
+3. Manually trigger training: `smart_heating_predictor.force_training`
+
+## Comparison: Old vs New Version
+
+| Feature | v1.x (ML Libraries) | v2.x (Pure Python) |
+|---------|---------------------|--------------------|
+| Dependencies | numpy, scikit-learn | None |
+| HAOS Compatible | ❌ No | ✅ Yes |
+| Installation | Complex | Simple |
+| Memory Usage | ~50MB | ~1MB |
+| Training Speed | Slow | Fast |
+| Accuracy | High | Good |
+| Maintenance | High | Low |
+
+## License
+
+**Restricted License: Usage Only**
+
+You are permitted to:
+- ✅ Use this integration for personal/home purposes
+- ✅ Modify for your own use
+- ✅ Run on your Home Assistant instance
+
+You are NOT permitted to:
+- ❌ Redistribute or share
+- ❌ Sell or commercialize
+- ❌ Include in other projects without permission
 
 ## Support
 
-For issues, questions, or contributions:
-- **GitHub Issues:** https://github.com/prezes9732/smart-heating-predictor/issues
+- **Issues**: [GitHub Issues](https://github.com/prezes9732/smart-heating-predictor/issues)
+- **Author**: [@prezes9732](https://github.com/prezes9732)
+
+## Changelog
+
+### v2.0.0 (2025-10-22)
+- ✅ Removed numpy and scikit-learn dependencies
+- ✅ Implemented pure Python prediction algorithm
+- ✅ HAOS compatible
+- ✅ Switched from pickle to JSON storage
+- ✅ Improved performance and reduced memory usage
+
+### v1.0.0 (2025)
+- Initial release with ML libraries
 
 ---
 
-**⭐ If you find this integration useful, please give it a star on GitHub!**
-
-*Developed with ❤️ by prezes9732*
+**Made with ❤️ for Home Assistant community**
