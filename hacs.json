@@ -1,9 +1,9 @@
 {
-  "name": "Smart Heating Predictor",
-  "hacs": "1.6.0",
-  "domains": ["smart_heating_predictor"],
-  "iot_class": "Calculated",
-  "homeassistant": "2023.1.0,"
+    "name": "Smart Heating Predictor",
+    "hacs": "1.6.0",
+    "domains": ["smart_heating_predictor"],
+    "iot_class": "Calculated",
+    "homeassistant": "2023.1.0",
     "render_readme": true,
     "filename": "smart_heating_predictor"
 }
